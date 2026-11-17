@@ -1,0 +1,16 @@
+[package]
+name = "storyloop-android"
+description = "StoryLoop's engine as a native library for the Android app, with UniFFI Kotlin bindings."
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+crate-type = ["lib", "cdylib"]
+name = "storyloop_android"
+
+[dependencies]
+serde_json = { workspace = true }
+storyloop-core = { path = "../storyloop-core" }
+thiserror = { workspace = true }
+uniffi = { workspace = true }

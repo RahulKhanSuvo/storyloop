@@ -1,0 +1,5 @@
+# "stable" follows the newest release; pin an exact version before the first release
+# so a checkout in two years builds the same way it does today.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

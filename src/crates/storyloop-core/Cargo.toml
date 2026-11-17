@@ -1,0 +1,9 @@
+[package]
+name = "storyloop-core"
+description = "StoryLoop's engine core: the project document, commands, and undo/redo."
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }

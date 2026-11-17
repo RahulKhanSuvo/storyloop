@@ -1,0 +1,15 @@
+[package]
+name = "storyloop-android-bindgen"
+description = "uniffi-bindgen for storyloop-android: generates its Kotlin bindings from the built library (the Android build runs it)."
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/main.rs"
+
+[dependencies]
+# The release storyloop-android uses (same lock file): bindings only load
+# against their own release.
+uniffi = { workspace = true, features = ["cli"] }

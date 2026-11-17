@@ -1,0 +1,5 @@
+# UniFFI bindings of the `storyloop_android` library.
+
+[bindings.kotlin]
+package_name = "com.storyloop.app.core"
+cdylib_name = "storyloop_android"

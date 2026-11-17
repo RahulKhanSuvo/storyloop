@@ -1,0 +1,23 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "crates/storyloop-android/bindgen"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+uniffi = "=0.32.2"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
+# Decoding and compositing are unusably slow in an unoptimised build, even when
+# the rest of the engine is being debugged.
+[profile.dev.package."*"]
+opt-level = 2

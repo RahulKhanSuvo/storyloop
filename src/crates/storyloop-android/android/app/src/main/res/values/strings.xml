@@ -1,0 +1,45 @@
+<resources>
+    <string name="app_name">StoryLoop</string>
+
+    <!-- Home / template library -->
+    <string name="pro_badge">PRO</string>
+    <string name="tab_for_you">For You</string>
+    <string name="tab_lifestyle">Lifestyle</string>
+    <string name="tab_business">Business</string>
+    <string name="tab_collage">Collage</string>
+    <string name="home_trending">Trending</string>
+    <string name="home_filters">Filters</string>
+    <string name="home_filters_subtitle">Every look we\'ve made, all in one scroll — find the one that fits.</string>
+    <string name="home_create_reels">Create Reels</string>
+    <string name="error_loading_data">Error loading data: %1$s</string>
+
+    <!-- Create bottom sheet (no subtitle section by owner request) -->
+    <string name="create_sheet_format_title">Start with format</string>
+    <string name="create_sheet_media_title">Start with media</string>
+    <string name="format_reel">Reel</string>
+    <string name="format_story">Story</string>
+    <string name="format_tiktok">TikTok</string>
+    <string name="format_post">Post</string>
+    <string name="format_square">Square</string>
+    <string name="format_video">Video</string>
+    <string name="format_landscape">Landscape</string>
+    <string name="format_youtube">YouTube</string>
+    <string name="format_shorts">Shorts</string>
+    <string name="format_ad">Ad</string>
+    <string name="format_fb_post">Post</string>
+    <string name="format_x_video">Video</string>
+    <string name="format_tweet">Tweet</string>
+    <string name="format_pin">Pin</string>
+    <string name="format_presentations">Presentations</string>
+    <string name="media_camera">Camera</string>
+    <string name="media_gallery">Gallery</string>
+    <string name="cd_recent_media">Recent media</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_favorites">Favorites</string>
+    <string name="cd_favorite_template">Favorite template</string>
+    <string name="cd_nav_templates">Templates</string>
+    <string name="cd_nav_library">Library</string>
+    <string name="cd_nav_create">Create</string>
+    <string name="cd_nav_profile">Profile</string>
+</resources>
