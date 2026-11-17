@@ -42,9 +42,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,7 +69,7 @@ import com.storyloop.app.ui.theme.StoryLoopTheme
 @Composable
 fun HomeScreen(
   modifier: Modifier = Modifier,
-  onOpenEditor: (String) -> Unit = {},
+  onOpenCreate: () -> Unit = {},
   viewModel: HomeViewModel = viewModel { HomeViewModel(SampleTemplateRepository()) },
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -91,7 +88,7 @@ fun HomeScreen(
       HomeContent(
         state = state,
         onCategorySelected = viewModel::selectCategory,
-        onOpenEditor = onOpenEditor,
+        onOpenCreate = onOpenCreate,
         modifier = modifier,
       )
     }
@@ -102,10 +99,9 @@ fun HomeScreen(
 private fun HomeContent(
   state: HomeUiState.Success,
   onCategorySelected: (TemplateCategory) -> Unit,
-  onOpenEditor: (String) -> Unit,
+  onOpenCreate: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  var showCreateSheet by rememberSaveable { mutableStateOf(false) }
   Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
     Column(
       modifier =
@@ -117,7 +113,7 @@ private fun HomeContent(
         selectedCategory = state.selectedCategory,
         onCategorySelected = onCategorySelected,
       )
-      state.featured?.let { FeaturedCard(it, onCreateClick = { showCreateSheet = true }) }
+      state.featured?.let { FeaturedCard(it, onCreateClick = onOpenCreate) }
       SectionHeader(title = stringResource(R.string.home_trending))
       TemplateRow(templates = state.trending, showLabel = false)
       SectionHeader(title = stringResource(R.string.home_filters))
@@ -131,12 +127,9 @@ private fun HomeContent(
       TemplateRow(templates = state.filters, showLabel = true)
     }
     FloatingDock(
-      onCreateClick = { showCreateSheet = true },
+      onCreateClick = onOpenCreate,
       modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding(),
     )
-  }
-  if (showCreateSheet) {
-    CreateSheet(onDismiss = { showCreateSheet = false }, onFormatSelected = onOpenEditor)
   }
 }
 

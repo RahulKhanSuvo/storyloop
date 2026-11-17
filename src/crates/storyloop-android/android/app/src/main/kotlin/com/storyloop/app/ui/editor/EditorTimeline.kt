@@ -3,11 +3,12 @@ package com.storyloop.app.ui.editor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,11 +16,11 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.EmojiEmotions
-import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material3.Icon
@@ -33,7 +34,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -42,162 +42,250 @@ import coil.compose.AsyncImage
 import com.storyloop.app.R
 import com.storyloop.app.core.EditorClip
 
-/** Timeline scale: one second of project time is this many dp. */
-private val DP_PER_SECOND = 25.dp
+/** The playhead color from the reference timeline. */
+private val TimelineYellow = Color(0xFFFFD60A)
 
-/** A row of the timeline, in display order. */
-private enum class TimelineRow(val height: Dp, val icon: ImageVector) {
-  Duration(48.dp, Icons.Outlined.Schedule),
-  Text(44.dp, Icons.Outlined.TextFields),
-  Media(56.dp, Icons.Outlined.Image),
-  Sticker(44.dp, Icons.Outlined.EmojiEmotions),
+/** Ruler scale: one second of project time is this many dp. */
+private val RULER_DP_PER_SECOND = 18.dp
+
+/** The fixed rail's width; rows start (and the playhead sits) right of it. */
+private val RAIL_WIDTH = 64.dp
+
+/**
+ * The timeline panel, per owner reference: a rounded-top surface holding a dot
+ * ruler with a yellow playhead, a rail of per-row buttons (the clock is
+ * decorative; T+ and the media+ open their panels), the duration chip, a text
+ * row, and one filmstrip row per media clip.
+ */
+@Composable
+internal fun EditorTimeline(
+  state: EditorUiState,
+  viewModel: EditorViewModel,
+  onAddText: () -> Unit,
+  onAddMedia: () -> Unit,
+  onAddSticker: () -> Unit,
+) {
+  val mediaClips = state.timeline.clips.filter { it.lane == "main" }
+  val textClips = state.timeline.clips.filter { it.lane == "text" }
+  val stickerClips = state.timeline.clips.filter { it.lane == "sticker" }
+
+  Column(
+    modifier =
+      Modifier.fillMaxWidth()
+        .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+        .padding(top = 2.dp, bottom = 10.dp),
+  ) {
+    Ruler(state.timeline.durationUs)
+    TimelineRow(rowHeight = 52.dp, rail = { RailButton(Icons.Outlined.Schedule, null) }) {
+      DurationChip(state.timeline.durationUs)
+    }
+    TimelineRow(
+      rowHeight = 48.dp,
+      rail = { RailButton(Icons.Outlined.TextFields, stringResource(R.string.editor_tool_text), onAddText) },
+    ) {
+      if (textClips.isEmpty()) {
+        RowPlaceholder(stringResource(R.string.timeline_text_placeholder))
+      } else {
+        Column {
+          textClips.forEach { clip -> TextChip(clip, state, viewModel) }
+        }
+      }
+    }
+    if (stickerClips.isNotEmpty()) {
+      TimelineRow(
+        rowHeight = 48.dp,
+        rail = {
+          RailButton(Icons.Outlined.EmojiEmotions, stringResource(R.string.editor_tool_stickers), onAddSticker)
+        },
+      ) {
+        Row {
+          stickerClips.forEach { clip -> StickerChip(clip, state, viewModel) }
+        }
+      }
+    }
+    mediaClips.forEach { clip ->
+      TimelineRow(
+        rowHeight = 56.dp,
+        rail = { RailButton(Icons.Outlined.AddPhotoAlternate, stringResource(R.string.editor_tool_media), onAddMedia) },
+      ) {
+        Filmstrip(clip, state, viewModel)
+      }
+    }
+  }
 }
 
-/** The timeline: a ruler, the duration chip, and one row per lane with its clips. */
+/** One timeline row: the fixed rail button on the left, the row's content right of the playhead. */
 @Composable
-internal fun EditorTimeline(state: EditorUiState, viewModel: EditorViewModel) {
-  val mediaClips = state.timeline.clips.filter { it.lane == "main" }
-  val stickerClips = state.timeline.clips.filter { it.lane == "sticker" }
-  val rows =
-    buildList {
-      add(TimelineRow.Duration)
-      add(TimelineRow.Text)
-      if (mediaClips.isNotEmpty()) add(TimelineRow.Media)
-      if (stickerClips.isNotEmpty()) add(TimelineRow.Sticker)
+private fun TimelineRow(rowHeight: Dp, rail: @Composable () -> Unit, content: @Composable () -> Unit) {
+  Row {
+    Box(modifier = Modifier.width(RAIL_WIDTH).height(rowHeight), contentAlignment = Alignment.Center) {
+      rail()
     }
-  val totalWidth = DP_PER_SECOND * (state.timeline.durationUs / 1_000_000f)
-  val scroll = rememberScrollState()
+    Box(modifier = Modifier.weight(1f).height(rowHeight)) {
+      // The playhead runs down the panel's left edge, at the project's current time.
+      Box(
+        modifier =
+          Modifier.align(Alignment.CenterStart).width(2.dp).fillMaxHeight().background(TimelineYellow),
+      )
+      Box(modifier = Modifier.fillMaxSize().padding(start = 10.dp, end = 10.dp)) {
+        content()
+      }
+    }
+  }
+}
 
-  Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-    // The fixed rail: one icon per visible row, heights matching the rows.
-    Column(modifier = Modifier.width(52.dp)) {
-      rows.forEach { row ->
-        Box(modifier = Modifier.height(row.height), contentAlignment = Alignment.Center) {
-          Icon(
-            imageVector = row.icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
+/** A rail button; no click action when `onClick` is null (like the duration clock). */
+@Composable
+private fun RailButton(icon: ImageVector, contentDescription: String?, onClick: (() -> Unit)? = null) {
+  Icon(
+    imageVector = icon,
+    contentDescription = contentDescription,
+    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    modifier =
+      Modifier.size(24.dp).then(
+        if (onClick != null) {
+          Modifier.clickable { onClick() }
+        } else {
+          Modifier
+        },
+      ),
+  )
+}
+
+/** Second ticks as dots; a label every five seconds; the playhead at 0s. */
+@Composable
+private fun Ruler(durationUs: Long) {
+  val seconds = (durationUs / 1_000_000).toInt()
+  Row {
+    Spacer(Modifier.width(RAIL_WIDTH))
+    Box(modifier = Modifier.weight(1f).height(30.dp)) {
+      Box(
+        modifier =
+          Modifier.align(Alignment.CenterStart).width(2.dp).fillMaxHeight().background(TimelineYellow),
+      )
+      for (s in 0..seconds) {
+        val major = s % 5 == 0
+        Box(
+          modifier =
+            Modifier.align(Alignment.BottomStart)
+              .offset(x = RULER_DP_PER_SECOND * s)
+              .size(if (major) 5.dp else 3.dp)
+              .clip(CircleShape)
+              .background(MaterialTheme.colorScheme.onSurfaceVariant),
+        )
+        if (major) {
+          Text(
+            text = "${s}s",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.offset(x = RULER_DP_PER_SECOND * s + 8.dp),
           )
         }
       }
     }
-    // Ruler and rows scroll together horizontally.
-    Column(modifier = Modifier.weight(1f).horizontalScroll(scroll)) {
-      Ruler(state.timeline.durationUs, totalWidth)
-      rows.forEach { row ->
-        Box(modifier = Modifier.width(totalWidth).height(row.height)) {
-          when (row) {
-            TimelineRow.Duration -> DurationChip(state.timeline.durationUs)
-            TimelineRow.Text ->
-              LaneContent(state.timeline.clips.filter { it.lane == "text" }, state, viewModel, row.height) { clip ->
-                Text(
-                  text = clip.text.orEmpty(),
-                  color = MaterialTheme.colorScheme.onSurface,
-                  fontSize = 13.sp,
-                  maxLines = 1,
-                  overflow = TextOverflow.Ellipsis,
-                  modifier = Modifier.padding(horizontal = 8.dp),
-                )
-              }
-            TimelineRow.Media ->
-              LaneContent(mediaClips, state, viewModel, row.height) { clip ->
-                AsyncImage(
-                  model = clip.mediaPath,
-                  contentDescription = null,
-                  contentScale = ContentScale.Crop,
-                  modifier = Modifier.fillMaxSize(),
-                )
-              }
-            TimelineRow.Sticker ->
-              LaneContent(stickerClips, state, viewModel, row.height) { clip ->
-                Text(text = clip.glyph.orEmpty(), fontSize = 22.sp)
-              }
-          }
-        }
-      }
-    }
   }
 }
 
-/** Second ticks; a label every five seconds. */
-@Composable
-private fun Ruler(durationUs: Long, totalWidth: Dp) {
-  val seconds = (durationUs / 1_000_000).toInt()
-  Box(modifier = Modifier.width(totalWidth).height(22.dp)) {
-    for (s in 0..seconds) {
-      val major = s % 5 == 0
-      Box(
-        modifier =
-          Modifier.offset(x = DP_PER_SECOND * s)
-            .width(1.5.dp)
-            .height(if (major) 10.dp else 6.dp)
-            .background(Color(0xFF6E6E73))
-            .align(Alignment.BottomStart),
-      )
-      if (major) {
-        Text(
-          text = "${s}s",
-          fontSize = 10.sp,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.offset(x = DP_PER_SECOND * s + 4.dp, y = (-2).dp),
-        )
-      }
-    }
-  }
-}
-
-/** The "Duration: 15.0s" chip at the top of the timeline. */
+/** The "Duration: 15.0s" chip row. */
 @Composable
 private fun DurationChip(durationUs: Long) {
-  Row(
+  Box(
     modifier =
-      Modifier.padding(start = 4.dp, top = 6.dp, bottom = 6.dp)
-        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(10.dp))
-        .padding(horizontal = 10.dp),
-    verticalAlignment = Alignment.CenterVertically,
+      Modifier.fillMaxWidth()
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
+        .padding(horizontal = 14.dp, vertical = 13.dp),
   ) {
     Text(
-      text = stringResource(R.string.timeline_duration_label, secondsLabel(durationUs)),
-      fontSize = 13.sp,
+      text = stringResource(R.string.timeline_duration_label, "%.1fs".format(durationUs / 1_000_000.0)),
+      fontSize = 15.sp,
       color = MaterialTheme.colorScheme.onSurface,
     )
   }
 }
 
-/** Positions this lane's clips along the row; `content` draws inside a clip chip. */
+/** An empty overlay lane shows its name as a placeholder, like the reference. */
 @Composable
-private fun LaneContent(
-  clips: List<EditorClip>,
-  state: EditorUiState,
-  viewModel: EditorViewModel,
-  rowHeight: Dp,
-  content: @Composable (EditorClip) -> Unit,
-) {
-  clips.forEach { clip ->
-    val selected = clip.id == state.selectedClipId
-    Box(
-      modifier =
-        Modifier.offset(x = DP_PER_SECOND * (clip.startUs / 1_000_000f))
-          .width((DP_PER_SECOND * (clip.durationUs / 1_000_000f)).coerceAtLeast(40.dp))
-          .height(rowHeight)
-          .padding(2.dp)
-          .clip(RoundedCornerShape(8.dp))
-          .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-          .then(
-            if (selected) {
-              Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
-            } else {
-              Modifier
-            },
-          )
-          .clickable { viewModel.select(clip.id) },
-      contentAlignment = Alignment.Center,
-    ) {
-      content(clip)
-    }
+private fun RowPlaceholder(label: String) {
+  Box(
+    modifier =
+      Modifier.fillMaxWidth()
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
+        .padding(horizontal = 14.dp, vertical = 13.dp),
+  ) {
+    Text(text = label, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
   }
 }
 
-/** "15.0s", the way the reference editors label durations. */
-private fun secondsLabel(durationUs: Long): String = "%.1fs".format(durationUs / 1_000_000.0)
+/** A text clip on the text row. */
+@Composable
+private fun TextChip(clip: EditorClip, state: EditorUiState, viewModel: EditorViewModel) {
+  val selected = clip.id == state.selectedClipId
+  Box(
+    modifier =
+      Modifier.fillMaxWidth()
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
+        .then(
+          if (selected) Modifier.border(1.5.dp, TimelineYellow, RoundedCornerShape(12.dp)) else Modifier
+        )
+        .clickable { viewModel.select(clip.id) }
+        .padding(horizontal = 14.dp, vertical = 13.dp),
+  ) {
+    Text(
+      text = clip.text.orEmpty(),
+      fontSize = 15.sp,
+      color = MaterialTheme.colorScheme.onSurface,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
+  }
+}
+
+/** A sticker clip on the sticker row. */
+@Composable
+private fun StickerChip(clip: EditorClip, state: EditorUiState, viewModel: EditorViewModel) {
+  val selected = clip.id == state.selectedClipId
+  Box(
+    modifier =
+      Modifier.size(width = 56.dp, height = 40.dp)
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(10.dp))
+        .then(
+          if (selected) Modifier.border(1.5.dp, TimelineYellow, RoundedCornerShape(10.dp)) else Modifier
+        )
+        .clickable { viewModel.select(clip.id) },
+    contentAlignment = Alignment.Center,
+  ) {
+    Text(text = clip.glyph.orEmpty(), fontSize = 20.sp)
+  }
+}
+
+/**
+ * One media clip as a filmstrip: its thumbnail tiled across the row, like the
+ * reference. Tapping selects the clip.
+ */
+@Composable
+private fun Filmstrip(clip: EditorClip, state: EditorUiState, viewModel: EditorViewModel) {
+  val selected = clip.id == state.selectedClipId
+  BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    val tile = 56.dp
+    val tiles = (maxWidth / tile).toInt() + 1
+    Row(
+      modifier =
+        Modifier.fillMaxSize()
+          .clip(RoundedCornerShape(10.dp))
+          .clickable { viewModel.select(clip.id) },
+    ) {
+      repeat(tiles) {
+        AsyncImage(
+          model = clip.mediaPath,
+          contentDescription = null,
+          contentScale = ContentScale.Crop,
+          modifier = Modifier.width(tile).fillMaxHeight(),
+        )
+      }
+    }
+    if (selected) {
+      Box(modifier = Modifier.fillMaxSize().border(1.5.dp, TimelineYellow, RoundedCornerShape(10.dp)))
+    }
+  }
+}

@@ -6,6 +6,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.storyloop.app.ui.editor.EditorScreen
 import com.storyloop.app.ui.home.HomeScreen
+import com.storyloop.app.ui.start.StartScreen
 
 @Composable
 fun MainNavigation() {
@@ -17,10 +18,20 @@ fun MainNavigation() {
     entryProvider =
       entryProvider {
         entry<Main> {
-          HomeScreen(onOpenEditor = { format -> backStack.add(Editor(format)) })
+          HomeScreen(onOpenCreate = { backStack.add(Create) })
+        }
+        entry<Create> {
+          StartScreen(
+            onClose = { backStack.removeLastOrNull() },
+            onOpenEditor = { media -> backStack.add(Editor(format = "reel", media = media)) },
+          )
         }
         entry<Editor> { key ->
-          EditorScreen(format = key.format, onBack = { backStack.removeLastOrNull() })
+          EditorScreen(
+            format = key.format,
+            initialMedia = key.media,
+            onBack = { backStack.removeLastOrNull() },
+          )
         }
       },
   )

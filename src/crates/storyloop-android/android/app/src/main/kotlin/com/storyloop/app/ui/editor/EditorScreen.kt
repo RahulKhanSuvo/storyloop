@@ -3,7 +3,8 @@ package com.storyloop.app.ui.editor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -24,12 +25,17 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Redo
 import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AspectRatio
 import androidx.compose.material.icons.outlined.Draw
+import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.EmojiEmotions
+import androidx.compose.material.icons.outlined.FormatColorReset
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.TextFields
+import androidx.compose.material.icons.outlined.ViewTimeline
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -39,6 +45,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -58,14 +65,26 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.storyloop.app.R
+import com.storyloop.app.StartMedia
 import com.storyloop.app.core.EditorCommand
 import com.storyloop.app.core.EditorTimeline
 
 /** The action yellow from the reference screenshots. */
 private val ActionYellow = Color(0xFFFFD60A)
 
-/** The tools the dock opens a panel for. */
-enum class EditorTool { Media, Text, Stickers, Draw, Music }
+/** The tools the dock opens a panel for, in dock order (per owner reference). */
+enum class EditorTool(val icon: ImageVector, val labelRes: Int) {
+  Media(Icons.Outlined.Image, R.string.editor_tool_media),
+  Stickers(Icons.Outlined.EmojiEmotions, R.string.editor_tool_stickers),
+  Text(Icons.Outlined.TextFields, R.string.editor_tool_text),
+  DrawText(Icons.Outlined.EditNote, R.string.editor_tool_draw_text),
+  Draw(Icons.Outlined.Draw, R.string.editor_tool_draw),
+  Background(Icons.Outlined.FormatColorReset, R.string.editor_tool_background),
+  Music(Icons.Outlined.MusicNote, R.string.editor_tool_music),
+  Layers(Icons.Outlined.Layers, R.string.editor_tool_layers),
+  Timeline(Icons.Outlined.ViewTimeline, R.string.editor_tool_timeline),
+  Format(Icons.Outlined.AspectRatio, R.string.editor_tool_format),
+}
 
 /**
  * The editor per owner reference: a blank canvas first; media, text, stickers
@@ -73,10 +92,24 @@ enum class EditorTool { Media, Text, Stickers, Draw, Music }
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditorScreen(format: String, onBack: () -> Unit) {
+fun EditorScreen(format: String, initialMedia: List<StartMedia> = emptyList(), onBack: () -> Unit) {
   val viewModel: EditorViewModel = viewModel(key = format) { EditorViewModel(format) }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
   var activeTool by rememberSaveable { mutableStateOf<EditorTool?>(null) }
+  var timelineOpen by rememberSaveable { mutableStateOf(false) }
+  // The Timeline tool toggles the timeline panel; the rest open their panels.
+  val handleTool: (EditorTool) -> Unit = { tool ->
+    if (tool == EditorTool.Timeline) {
+      activeTool = null
+      timelineOpen = !timelineOpen
+    } else {
+      activeTool = tool
+    }
+  }
+  // Media picked on the create screen lands on the main track when it opens.
+  LaunchedEffect(Unit) {
+    if (initialMedia.isNotEmpty()) viewModel.addMediaBatch(initialMedia)
+  }
 
   Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
     EditorTopBar(
@@ -90,11 +123,23 @@ fun EditorScreen(format: String, onBack: () -> Unit) {
       modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
       contentAlignment = Alignment.Center,
     ) {
-      EditorCanvas(state, onSelect = viewModel::select)
+      EditorCanvas(state, onSelect = viewModel::select, onAddMedia = { activeTool = EditorTool.Media })
     }
-    TransportRow()
-    EditorTimeline(state, viewModel)
-    EditorDock(onToolSelected = { tool -> activeTool = tool })
+    if (state.timeline.clips.isNotEmpty()) {
+      TransportRow()
+    }
+    if (timelineOpen) {
+      // The Timeline tool opens the panel even on a blank project — it shows
+      // the duration chip and the text row, and filmstrips land as clips come.
+      EditorTimeline(
+        state,
+        viewModel,
+        onAddText = { activeTool = EditorTool.Text },
+        onAddMedia = { activeTool = EditorTool.Media },
+        onAddSticker = { activeTool = EditorTool.Stickers },
+      )
+    }
+    EditorDock(onToolSelected = handleTool)
   }
 
   activeTool?.let { tool ->
@@ -128,8 +173,7 @@ fun EditorScreen(format: String, onBack: () -> Unit) {
             )
             activeTool = null
           }
-        EditorTool.Draw -> ComingSoonPanel()
-        EditorTool.Music -> ComingSoonPanel()
+        else -> ComingSoonPanel()
       }
     }
   }
@@ -205,7 +249,7 @@ private fun EditorTopBar(
 
 /** The preview: blank white first; clips render at their normalized positions. */
 @Composable
-private fun EditorCanvas(state: EditorUiState, onSelect: (Long?) -> Unit) {
+private fun EditorCanvas(state: EditorUiState, onSelect: (Long?) -> Unit, onAddMedia: () -> Unit) {
   BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
     val boxWidth = maxWidth
     val boxHeight = maxHeight
@@ -262,9 +306,9 @@ private fun EditorCanvas(state: EditorUiState, onSelect: (Long?) -> Unit) {
       if (state.timeline.clips.isEmpty()) {
         Icon(
           imageVector = Icons.Outlined.Add,
-          contentDescription = stringResource(R.string.editor_canvas_hint),
+          contentDescription = stringResource(R.string.editor_canvas_add),
           tint = Color(0xFF9A9A9E),
-          modifier = Modifier.size(30.dp),
+          modifier = Modifier.size(30.dp).clickable { onAddMedia() },
         )
       }
     }
@@ -298,37 +342,35 @@ private fun TransportRow() {
   }
 }
 
+/** The tool dock: one scrollable row of every tool (per owner reference). */
 @Composable
 private fun EditorDock(onToolSelected: (EditorTool) -> Unit) {
   Row(
     modifier =
       Modifier.fillMaxWidth()
-        .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f))
         .navigationBarsPadding()
-        .padding(vertical = 10.dp),
-    horizontalArrangement = Arrangement.SpaceEvenly,
+        .padding(top = 8.dp, bottom = 6.dp)
+        .horizontalScroll(rememberScrollState()),
+    verticalAlignment = Alignment.CenterVertically,
   ) {
-    DockTool(Icons.Outlined.Image, stringResource(R.string.editor_tool_media), EditorTool.Media, onToolSelected)
-    DockTool(Icons.Outlined.TextFields, stringResource(R.string.editor_tool_text), EditorTool.Text, onToolSelected)
-    DockTool(Icons.Outlined.EmojiEmotions, stringResource(R.string.editor_tool_stickers), EditorTool.Stickers, onToolSelected)
-    DockTool(Icons.Outlined.Draw, stringResource(R.string.editor_tool_draw), EditorTool.Draw, onToolSelected)
-    DockTool(Icons.Outlined.MusicNote, stringResource(R.string.editor_tool_music), EditorTool.Music, onToolSelected)
-  }
-}
-
-@Composable
-private fun DockTool(icon: ImageVector, label: String, tool: EditorTool, onToolSelected: (EditorTool) -> Unit) {
-  Column(
-    horizontalAlignment = Alignment.CenterHorizontally,
-    modifier = Modifier.clickable { onToolSelected(tool) }.padding(horizontal = 12.dp),
-  ) {
-    Icon(
-      imageVector = icon,
-      contentDescription = null,
-      tint = MaterialTheme.colorScheme.onSurface,
-      modifier = Modifier.size(22.dp),
-    )
-    Spacer(Modifier.height(4.dp))
-    Text(text = label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+    EditorTool.entries.forEach { tool ->
+      Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { onToolSelected(tool) }.padding(horizontal = 13.dp),
+      ) {
+        Icon(
+          imageVector = tool.icon,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.onSurface,
+          modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.height(5.dp))
+        Text(
+          text = stringResource(tool.labelRes),
+          fontSize = 10.sp,
+          color = MaterialTheme.colorScheme.onSurface,
+        )
+      }
+    }
   }
 }

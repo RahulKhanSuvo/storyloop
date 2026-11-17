@@ -49,6 +49,13 @@
     <string name="editor_tool_stickers">Stickers</string>
     <string name="editor_tool_draw">Draw</string>
     <string name="editor_tool_music">Music</string>
+    <string name="editor_tool_draw_text">Draw Text</string>
+    <string name="editor_tool_background">Background</string>
+    <string name="editor_tool_layers">Layers</string>
+    <string name="editor_tool_timeline">Timeline</string>
+    <string name="editor_tool_format">Format</string>
+    <string name="editor_canvas_add">Add media or video</string>
+    <string name="timeline_text_placeholder">Text</string>
     <string name="timeline_duration_label">Duration: %1$s</string>
     <string name="editor_text_hint">Type something…</string>
     <string name="editor_add_text">Add text</string>
@@ -56,6 +63,21 @@
     <string name="editor_media_empty">No media found on this device.</string>
     <string name="editor_stickers_title">Stickers</string>
     <string name="editor_coming_soon">Coming soon</string>
+
+    <!-- Create screen (full-screen picker per owner reference) -->
+    <string name="start_close">Close</string>
+    <string name="start_chip_trending">Trending 🔥</string>
+    <string name="start_chip_halloween">Halloween</string>
+    <string name="start_chip_beige">Beige</string>
+    <string name="start_chip_photo_gallery">Photo Gallery</string>
+    <string name="start_blank_scratch">Start from scratch</string>
+    <string name="start_tab_library">Library</string>
+    <string name="start_tab_stock_photos">Stock Photos</string>
+    <string name="start_tab_stock_videos">Stock Videos</string>
+    <string name="start_reset">Reset</string>
+    <string name="start_recents">Recents</string>
+    <string name="start_create_count">Create (%1$d)</string>
+    <string name="start_stock_empty">Stock media is coming soon.</string>
 
     <!-- Content descriptions -->
     <string name="cd_favorites">Favorites</string>
