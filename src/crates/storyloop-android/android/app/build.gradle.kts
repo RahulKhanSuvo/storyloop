@@ -135,6 +135,14 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
 
+    // The engine bridge: UniFFI's generated Kotlin bindings ride on JNA (its
+    // Android aar artifact), and the commands crossing it are
+    // kotlinx-serialization JSON.
+    implementation(libs.jna) {
+        artifact { type = "aar" }
+    }
+    implementation(libs.kotlinx.serialization.json)
+
     // Arch Components
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

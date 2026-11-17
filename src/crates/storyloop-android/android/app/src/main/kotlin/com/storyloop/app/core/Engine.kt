@@ -42,7 +42,7 @@ class Engine(format: String) {
 
   private fun ClipInfo.toClip(): EditorClip =
     EditorClip(
-      id = id,
+      id = id.toLong(),
       lane = lane,
       kind = kind,
       startUs = startUs,

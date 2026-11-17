@@ -207,8 +207,10 @@ private fun EditorTopBar(
 @Composable
 private fun EditorCanvas(state: EditorUiState, onSelect: (Long?) -> Unit) {
   BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    val boxWidth = maxWidth
+    val boxHeight = maxHeight
     val ratio = state.timeline.ratio
-    val canvasWidth = minOf(maxWidth, maxHeight * ratio)
+    val canvasWidth = minOf(boxWidth, boxHeight * ratio)
     val canvasHeight = canvasWidth / ratio
     Box(
       modifier =
@@ -236,8 +238,8 @@ private fun EditorCanvas(state: EditorUiState, onSelect: (Long?) -> Unit) {
         val placement =
           Modifier.align(Alignment.Center)
             .offset(
-              x = maxWidth * ((clip.x ?: 0.5f) - 0.5f) * 0.9f,
-              y = maxHeight * ((clip.y ?: 0.5f) - 0.5f) * 0.9f,
+              x = boxWidth * ((clip.x ?: 0.5f) - 0.5f) * 0.9f,
+              y = boxHeight * ((clip.y ?: 0.5f) - 0.5f) * 0.9f,
             )
         when (clip.kind) {
           "text" ->
