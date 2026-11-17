@@ -90,6 +90,8 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
+        // The NDK installed on the build machines; AGP 9's default (29) is not present.
+        ndkVersion = "27.1.12297006"
         ndk { abiFilters.addAll(rustAbis) }
     }
 
