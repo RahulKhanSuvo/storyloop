@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,25 +71,29 @@ import com.storyloop.app.data.AndroidMediaRepository
 import com.storyloop.app.data.RecentMedia
 import kotlinx.coroutines.launch
 
-/** A social format the user can start a new video in; card heights vary per reference. */
-private data class CreateFormat(val labelRes: Int, val icon: ImageVector, val cardHeight: Int)
+/**
+ * A social format the user can start a new video in; card heights vary per
+ * reference. `canvas` is the editor canvas it opens: reel, portrait, square
+ * or landscape.
+ */
+private data class CreateFormat(val canvas: String, val labelRes: Int, val icon: ImageVector, val cardHeight: Int)
 
 private val CREATE_FORMATS = listOf(
-  CreateFormat(R.string.format_reel, Icons.Outlined.Movie, 105),
-  CreateFormat(R.string.format_story, Icons.Outlined.DataUsage, 105),
-  CreateFormat(R.string.format_tiktok, Icons.Outlined.MusicNote, 105),
-  CreateFormat(R.string.format_post, Icons.Outlined.Photo, 90),
-  CreateFormat(R.string.format_square, Icons.Outlined.CropSquare, 75),
-  CreateFormat(R.string.format_video, Icons.Outlined.Videocam, 90),
-  CreateFormat(R.string.format_landscape, Icons.Outlined.Landscape, 60),
-  CreateFormat(R.string.format_youtube, Icons.Outlined.SmartDisplay, 55),
-  CreateFormat(R.string.format_shorts, Icons.Outlined.CropPortrait, 120),
-  CreateFormat(R.string.format_ad, Icons.Outlined.Campaign, 100),
-  CreateFormat(R.string.format_fb_post, Icons.Outlined.Feed, 55),
-  CreateFormat(R.string.format_x_video, Icons.Outlined.OndemandVideo, 90),
-  CreateFormat(R.string.format_tweet, Icons.Outlined.AlternateEmail, 55),
-  CreateFormat(R.string.format_pin, Icons.Outlined.PushPin, 100),
-  CreateFormat(R.string.format_presentations, Icons.Outlined.Slideshow, 100),
+  CreateFormat("reel", R.string.format_reel, Icons.Outlined.Movie, 105),
+  CreateFormat("reel", R.string.format_story, Icons.Outlined.DataUsage, 105),
+  CreateFormat("reel", R.string.format_tiktok, Icons.Outlined.MusicNote, 105),
+  CreateFormat("portrait", R.string.format_post, Icons.Outlined.Photo, 90),
+  CreateFormat("square", R.string.format_square, Icons.Outlined.CropSquare, 75),
+  CreateFormat("reel", R.string.format_video, Icons.Outlined.Videocam, 90),
+  CreateFormat("landscape", R.string.format_landscape, Icons.Outlined.Landscape, 60),
+  CreateFormat("landscape", R.string.format_youtube, Icons.Outlined.SmartDisplay, 55),
+  CreateFormat("reel", R.string.format_shorts, Icons.Outlined.CropPortrait, 120),
+  CreateFormat("reel", R.string.format_ad, Icons.Outlined.Campaign, 100),
+  CreateFormat("landscape", R.string.format_fb_post, Icons.Outlined.Feed, 55),
+  CreateFormat("landscape", R.string.format_x_video, Icons.Outlined.OndemandVideo, 90),
+  CreateFormat("reel", R.string.format_tweet, Icons.Outlined.AlternateEmail, 55),
+  CreateFormat("reel", R.string.format_pin, Icons.Outlined.PushPin, 100),
+  CreateFormat("landscape", R.string.format_presentations, Icons.Outlined.Slideshow, 100),
 )
 
 /** Fallback art when no media permission / no media yet; real media replaces these. */
@@ -129,7 +134,7 @@ private fun mediaPermissions(): List<String> =
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateSheet(onDismiss: () -> Unit) {
+fun CreateSheet(onDismiss: () -> Unit, onFormatSelected: (String) -> Unit) {
   val context = LocalContext.current
   var recentMedia by remember { mutableStateOf<List<RecentMedia>>(emptyList()) }
   val scope = rememberCoroutineScope()
@@ -178,7 +183,7 @@ fun CreateSheet(onDismiss: () -> Unit) {
         verticalAlignment = Alignment.Bottom,
       ) {
         items(CREATE_FORMATS) { format ->
-          FormatCard(format)
+          FormatCard(format, onFormatSelected)
         }
       }
       Text(
@@ -229,13 +234,14 @@ fun CreateSheet(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun FormatCard(format: CreateFormat) {
+private fun FormatCard(format: CreateFormat, onFormatSelected: (String) -> Unit) {
   Column(horizontalAlignment = Alignment.CenterHorizontally) {
     Box(
       modifier =
         Modifier.size(width = 88.dp, height = format.cardHeight.dp)
           .clip(RoundedCornerShape(20.dp))
-          .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+          .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+          .clickable { onFormatSelected(format.canvas) },
       contentAlignment = Alignment.Center,
     ) {
       Icon(

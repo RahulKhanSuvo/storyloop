@@ -72,6 +72,7 @@ import com.storyloop.app.ui.theme.StoryLoopTheme
 @Composable
 fun HomeScreen(
   modifier: Modifier = Modifier,
+  onOpenEditor: (String) -> Unit = {},
   viewModel: HomeViewModel = viewModel { HomeViewModel(SampleTemplateRepository()) },
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -90,6 +91,7 @@ fun HomeScreen(
       HomeContent(
         state = state,
         onCategorySelected = viewModel::selectCategory,
+        onOpenEditor = onOpenEditor,
         modifier = modifier,
       )
     }
@@ -100,6 +102,7 @@ fun HomeScreen(
 private fun HomeContent(
   state: HomeUiState.Success,
   onCategorySelected: (TemplateCategory) -> Unit,
+  onOpenEditor: (String) -> Unit,
   modifier: Modifier = Modifier,
 ) {
   var showCreateSheet by rememberSaveable { mutableStateOf(false) }
@@ -133,7 +136,7 @@ private fun HomeContent(
     )
   }
   if (showCreateSheet) {
-    CreateSheet(onDismiss = { showCreateSheet = false })
+    CreateSheet(onDismiss = { showCreateSheet = false }, onFormatSelected = onOpenEditor)
   }
 }
 

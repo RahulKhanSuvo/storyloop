@@ -35,6 +35,28 @@
     <string name="media_gallery">Gallery</string>
     <string name="cd_recent_media">Recent media</string>
 
+    <!-- Editor -->
+    <string name="editor_back">Back</string>
+    <string name="editor_undo">Undo</string>
+    <string name="editor_redo">Redo</string>
+    <string name="editor_preview">Preview</string>
+    <string name="editor_share">Share</string>
+    <string name="editor_play">Play</string>
+    <string name="editor_done">Done</string>
+    <string name="editor_canvas_hint">Tap the tools below to add media, text or stickers</string>
+    <string name="editor_tool_media">Media</string>
+    <string name="editor_tool_text">Text</string>
+    <string name="editor_tool_stickers">Stickers</string>
+    <string name="editor_tool_draw">Draw</string>
+    <string name="editor_tool_music">Music</string>
+    <string name="timeline_duration_label">Duration: %1$s</string>
+    <string name="editor_text_hint">Type something…</string>
+    <string name="editor_add_text">Add text</string>
+    <string name="editor_media_title">Your media</string>
+    <string name="editor_media_empty">No media found on this device.</string>
+    <string name="editor_stickers_title">Stickers</string>
+    <string name="editor_coming_soon">Coming soon</string>
+
     <!-- Content descriptions -->
     <string name="cd_favorites">Favorites</string>
     <string name="cd_favorite_template">Favorite template</string>
