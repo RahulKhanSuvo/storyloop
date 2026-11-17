@@ -125,12 +125,10 @@ fun EditorScreen(format: String, initialMedia: List<StartMedia> = emptyList(), o
     ) {
       EditorCanvas(state, onSelect = viewModel::select, onAddMedia = { activeTool = EditorTool.Media })
     }
-    if (state.timeline.clips.isNotEmpty()) {
-      TransportRow()
-    }
     if (timelineOpen) {
-      // The Timeline tool opens the panel even on a blank project — it shows
-      // the duration chip and the text row, and filmstrips land as clips come.
+      // Timeline view: the transport (with Done) sits above the panel and the
+      // tool dock steps aside; Done returns to the normal editor.
+      TransportRow(onDone = { timelineOpen = false })
       EditorTimeline(
         state,
         viewModel,
@@ -138,8 +136,9 @@ fun EditorScreen(format: String, initialMedia: List<StartMedia> = emptyList(), o
         onAddMedia = { activeTool = EditorTool.Media },
         onAddSticker = { activeTool = EditorTool.Stickers },
       )
+    } else {
+      EditorDock(onToolSelected = handleTool)
     }
-    EditorDock(onToolSelected = handleTool)
   }
 
   activeTool?.let { tool ->
@@ -315,9 +314,9 @@ private fun EditorCanvas(state: EditorUiState, onSelect: (Long?) -> Unit, onAddM
   }
 }
 
-/** Time and play controls under the canvas. */
+/** Time and play controls under the canvas; Done closes the timeline panel. */
 @Composable
-private fun TransportRow() {
+private fun TransportRow(onDone: () -> Unit) {
   Row(
     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
     verticalAlignment = Alignment.CenterVertically,
@@ -338,6 +337,7 @@ private fun TransportRow() {
       color = MaterialTheme.colorScheme.onSurface,
       fontSize = 17.sp,
       fontWeight = FontWeight.Bold,
+      modifier = Modifier.clickable { onDone() },
     )
   }
 }
