@@ -132,8 +132,8 @@ pub enum ClipKind {
     Sticker { glyph: String, x: f32, y: f32, scale: f32 },
     /// Freehand drawing over the frame; stroke paths are opaque for now.
     Draw { strokes: u32 },
-    /// Music or narration from the device.
-    Audio { path: String },
+    /// Music or narration from the device; `name` is what the clip is titled.
+    Audio { path: String, name: String },
 }
 
 /// The whole project: the canvas format, the project length, and the lanes.
@@ -198,6 +198,35 @@ impl Document {
                     duration_us,
                     kind: ClipKind::Media { path, is_video },
                 });
+                Ok(id)
+            }
+            Command::AddAudio { path, name, at_us, duration_us } => {
+                let (start_us, duration_us) = clamped_span(at_us, duration_us, self.duration_us)?;
+                let id = self.take_id();
+                self.lane_mut(LaneKind::Audio).clips.push(Clip {
+                    id,
+                    start_us,
+                    duration_us,
+                    kind: ClipKind::Audio { path, name },
+                });
+                Ok(id)
+            }
+            Command::ReorderMain { id, index } => {
+                let lane = self.lane_mut(LaneKind::Main);
+                let from = lane
+                    .clips
+                    .iter()
+                    .position(|c| c.id == id)
+                    .ok_or(EngineError::UnknownClip(id))?;
+                let clip = lane.clips.remove(from);
+                let to = (index as usize).min(lane.clips.len());
+                lane.clips.insert(to, clip);
+                // The main track is gapless: re-time it back to back from the start.
+                let mut t = 0;
+                for c in &mut lane.clips {
+                    c.start_us = t;
+                    t += c.duration_us;
+                }
                 Ok(id)
             }
             Command::AddText { content, at_us, duration_us } => {

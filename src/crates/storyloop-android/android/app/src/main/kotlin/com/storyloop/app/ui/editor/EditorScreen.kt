@@ -1,5 +1,11 @@
 package com.storyloop.app.ui.editor
 
+import android.content.Context
+import android.media.MediaMetadataRetriever
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,6 +39,7 @@ import androidx.compose.material.icons.outlined.FormatColorReset
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.ViewTimeline
@@ -45,9 +52,11 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,13 +65,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.storyloop.app.R
 import com.storyloop.app.StartMedia
@@ -93,17 +109,28 @@ enum class EditorTool(val icon: ImageVector, val labelRes: Int) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditorScreen(format: String, initialMedia: List<StartMedia> = emptyList(), onBack: () -> Unit) {
-  val viewModel: EditorViewModel = viewModel(key = format) { EditorViewModel(format) }
+  val appContext = LocalContext.current.applicationContext
+  StoryThumbs.init(appContext) // the timeline's thumbnails need a context to read media
+  val viewModel: EditorViewModel = viewModel(key = format) { EditorViewModel(format, appContext) }
   val state by viewModel.uiState.collectAsStateWithLifecycle()
+  val playing by viewModel.playing.collectAsStateWithLifecycle()
+  val currentTimeUs by viewModel.currentTimeUs.collectAsStateWithLifecycle()
   var activeTool by rememberSaveable { mutableStateOf<EditorTool?>(null) }
   var timelineOpen by rememberSaveable { mutableStateOf(false) }
-  // The Timeline tool toggles the timeline panel; the rest open their panels.
+  val audioPicker =
+    rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+      uri ?: return@rememberLauncherForActivityResult
+      viewModel.addAudio(uri.toString(), queryDisplayName(appContext, uri), audioDurationUs(appContext, uri))
+    }
+  // The Timeline tool toggles the timeline panel, Music picks a sound; the rest open their panels.
   val handleTool: (EditorTool) -> Unit = { tool ->
-    if (tool == EditorTool.Timeline) {
-      activeTool = null
-      timelineOpen = !timelineOpen
-    } else {
-      activeTool = tool
+    when {
+      tool == EditorTool.Timeline -> {
+        activeTool = null
+        timelineOpen = !timelineOpen
+      }
+      tool == EditorTool.Music -> audioPicker.launch("audio/*")
+      else -> activeTool = tool
     }
   }
   // Media picked on the create screen lands on the main track when it opens.
@@ -123,18 +150,33 @@ fun EditorScreen(format: String, initialMedia: List<StartMedia> = emptyList(), o
       modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
       contentAlignment = Alignment.Center,
     ) {
-      EditorCanvas(state, onSelect = viewModel::select, onAddMedia = { activeTool = EditorTool.Media })
+      EditorCanvas(
+        state,
+        currentTimeUs,
+        playing,
+        onSelect = viewModel::select,
+        onAddMedia = { activeTool = EditorTool.Media },
+      )
     }
     if (timelineOpen) {
       // Timeline view: the transport (with Done) sits above the panel and the
       // tool dock steps aside; Done returns to the normal editor.
-      TransportRow(onDone = { timelineOpen = false })
+      TransportRow(
+        timeUs = currentTimeUs,
+        playing = playing,
+        onTogglePlay = { if (playing) viewModel.pause() else viewModel.play() },
+        onDone = { timelineOpen = false },
+      )
       EditorTimeline(
         state,
         viewModel,
+        timeUs = currentTimeUs,
+        playing = playing,
+        modifier = Modifier.fillMaxWidth().weight(1f),
         onAddText = { activeTool = EditorTool.Text },
         onAddMedia = { activeTool = EditorTool.Media },
         onAddSticker = { activeTool = EditorTool.Stickers },
+        onAddAudio = { audioPicker.launch("audio/*") },
       )
     } else {
       EditorDock(onToolSelected = handleTool)
@@ -188,6 +230,27 @@ private fun buildAddMedia(
   val startUs = timeline.clips.filter { it.lane == "main" }.maxOfOrNull { it.endUs } ?: 0L
   val durationUs = if (isVideo && durationMs > 0) durationMs else 5_000_000L
   return EditorCommand.AddMedia(path = path, is_video = isVideo, start_us = startUs, duration_us = durationUs)
+}
+
+/** What a picked audio file is called, for the clip's label. */
+private fun queryDisplayName(context: Context, uri: Uri): String =
+  runCatching {
+    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+      if (c.moveToFirst()) c.getString(0) else null
+    }
+  }.getOrNull() ?: uri.lastPathSegment ?: "Audio"
+
+/** How long a picked audio file runs, in microseconds; ten seconds when it cannot be read. */
+private fun audioDurationUs(context: Context, uri: Uri): Long {
+  val retriever = MediaMetadataRetriever()
+  return try {
+    retriever.setDataSource(context, uri)
+    (retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 10_000L) * 1_000
+  } catch (e: Exception) {
+    10_000_000L
+  } finally {
+    runCatching { retriever.release() }
+  }
 }
 
 @Composable
@@ -246,15 +309,31 @@ private fun EditorTopBar(
   }
 }
 
-/** The preview: blank white first; clips render at their normalized positions. */
+/** The preview: blank white first; the clip under the playhead fills the canvas. */
 @Composable
-private fun EditorCanvas(state: EditorUiState, onSelect: (Long?) -> Unit, onAddMedia: () -> Unit) {
+private fun EditorCanvas(
+  state: EditorUiState,
+  timeUs: Long,
+  playing: Boolean,
+  onSelect: (Long?) -> Unit,
+  onAddMedia: () -> Unit,
+) {
   BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
     val boxWidth = maxWidth
     val boxHeight = maxHeight
     val ratio = state.timeline.ratio
     val canvasWidth = minOf(boxWidth, boxHeight * ratio)
     val canvasHeight = canvasWidth / ratio
+
+    // The main-track clip under the playhead; gaps keep showing the previous
+    // one, so the preview never flickers blank between clips.
+    val mainClips = state.timeline.clips.filter { it.lane == "main" }
+    val active =
+      mainClips.lastOrNull { timeUs >= it.startUs && timeUs < it.endUs }
+        ?: mainClips.lastOrNull { it.startUs <= timeUs }
+        ?: mainClips.firstOrNull()
+    val activeVideo = active?.takeIf { it.isVideo == true && it.mediaPath != null }
+
     Box(
       modifier =
         Modifier.width(canvasWidth)
@@ -264,44 +343,52 @@ private fun EditorCanvas(state: EditorUiState, onSelect: (Long?) -> Unit, onAddM
           .clickable { onSelect(null) },
       contentAlignment = Alignment.Center,
     ) {
-      val mediaClip = state.timeline.clips.firstOrNull { it.kind == "media" }
-      if (mediaClip != null) {
-        AsyncImage(
-          model = mediaClip.mediaPath,
-          contentDescription = null,
-          contentScale = ContentScale.Crop,
-          modifier = Modifier.fillMaxSize(),
-        )
-      }
-      state.timeline.clips.forEach { clip ->
-        val selected = clip.id == state.selectedClipId
-        val selectionColor = if (mediaClip != null) Color.White else Color(0xFF141416)
-        val selection =
-          if (selected) Modifier.border(1.5.dp, selectionColor, RoundedCornerShape(8.dp)) else Modifier
-        val placement =
-          Modifier.align(Alignment.Center)
-            .offset(
-              x = boxWidth * ((clip.x ?: 0.5f) - 0.5f) * 0.9f,
-              y = boxHeight * ((clip.y ?: 0.5f) - 0.5f) * 0.9f,
-            )
-        when (clip.kind) {
-          "text" ->
-            Text(
-              text = clip.text.orEmpty(),
-              color = if (mediaClip != null) Color.White else Color(0xFF141416),
-              fontSize = 22.sp,
-              fontWeight = FontWeight.Bold,
-              textAlign = TextAlign.Center,
-              modifier = placement.clickable { onSelect(clip.id) }.then(selection),
-            )
-          "sticker" ->
-            Text(
-              text = clip.glyph.orEmpty(),
-              fontSize = 44.sp,
-              modifier = placement.clickable { onSelect(clip.id) }.then(selection),
-            )
+      if (active != null) {
+        if (activeVideo != null && playing) {
+          // Real video playback while playing: one ExoPlayer, driven to the
+          // clip's local position; the play clock stays the master.
+          VideoSurface(mediaPath = activeVideo.mediaPath.orEmpty(), playing = playing)
+        } else {
+          AsyncImage(
+            model = active.mediaPath,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+          )
         }
       }
+      // Overlays only show while they are on the timeline.
+      state.timeline.clips
+        .filter { it.lane != "main" && timeUs >= it.startUs && timeUs < it.endUs }
+        .forEach { clip ->
+          val selected = clip.id == state.selectedClipId
+          val selectionColor = if (active != null) Color.White else Color(0xFF141416)
+          val selection =
+            if (selected) Modifier.border(1.5.dp, selectionColor, RoundedCornerShape(8.dp)) else Modifier
+          val placement =
+            Modifier.align(Alignment.Center)
+              .offset(
+                x = boxWidth * ((clip.x ?: 0.5f) - 0.5f) * 0.9f,
+                y = boxHeight * ((clip.y ?: 0.5f) - 0.5f) * 0.9f,
+              )
+          when (clip.kind) {
+            "text" ->
+              Text(
+                text = clip.text.orEmpty(),
+                color = if (active != null) Color.White else Color(0xFF141416),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = placement.clickable { onSelect(clip.id) }.then(selection),
+              )
+            "sticker" ->
+              Text(
+                text = clip.glyph.orEmpty(),
+                fontSize = 44.sp,
+                modifier = placement.clickable { onSelect(clip.id) }.then(selection),
+              )
+          }
+        }
       if (state.timeline.clips.isEmpty()) {
         Icon(
           imageVector = Icons.Outlined.Add,
@@ -314,19 +401,56 @@ private fun EditorCanvas(state: EditorUiState, onSelect: (Long?) -> Unit, onAddM
   }
 }
 
-/** Time and play controls under the canvas; Done closes the timeline panel. */
+/** One ExoPlayer rendering the active video into the canvas while playing. */
+@OptIn(UnstableApi::class)
 @Composable
-private fun TransportRow(onDone: () -> Unit) {
+private fun VideoSurface(mediaPath: String, playing: Boolean) {
+  val context = LocalContext.current
+  val player = remember { ExoPlayer.Builder(context).build() }
+  DisposableEffect(mediaPath) {
+    player.setMediaItem(MediaItem.fromUri(mediaPath))
+    player.prepare()
+    onDispose {
+      player.release()
+    }
+  }
+  LaunchedEffect(playing) {
+    if (playing) {
+      if (player.playbackState == ExoPlayer.STATE_ENDED) player.seekTo(0)
+      player.playWhenReady = true
+    } else {
+      player.playWhenReady = false
+    }
+  }
+  AndroidView(
+    modifier = Modifier.fillMaxSize().background(Color.Black),
+    factory = { ctx ->
+      PlayerView(ctx).apply {
+        useController = false
+        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        this.player = player
+      }
+    },
+  )
+}
+
+/** Time, play/pause and Done controls under the canvas; Done closes the timeline panel. */
+@Composable
+private fun TransportRow(timeUs: Long, playing: Boolean, onTogglePlay: () -> Unit, onDone: () -> Unit) {
   Row(
     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    Text(text = "00:00", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+    Text(
+      text = "%02d:%02d".format(timeUs / 60_000_000, (timeUs / 1_000_000) % 60),
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      fontSize = 13.sp,
+    )
     Spacer(Modifier.weight(1f))
-    IconButton(onClick = {}) {
+    IconButton(onClick = onTogglePlay) {
       Icon(
-        imageVector = Icons.Outlined.PlayArrow,
-        contentDescription = stringResource(R.string.editor_play),
+        imageVector = if (playing) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+        contentDescription = stringResource(if (playing) R.string.editor_pause else R.string.editor_play),
         tint = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.size(30.dp),
       )

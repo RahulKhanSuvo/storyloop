@@ -51,6 +51,7 @@ class Engine(format: String) {
       isVideo = isVideo,
       text = text,
       glyph = glyph,
+      name = name,
       x = x,
       y = y,
     )
@@ -72,6 +73,8 @@ data class EditorClip(
   val text: String?,
   /** The emoji a sticker clip shows. */
   val glyph: String?,
+  /** What an audio clip is titled. */
+  val name: String?,
   /** Normalized canvas position (0..1), for text and stickers. */
   val x: Float?,
   val y: Float?,

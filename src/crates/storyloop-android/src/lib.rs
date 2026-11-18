@@ -62,6 +62,8 @@ pub struct ClipInfo {
     pub text: Option<String>,
     /// The emoji a sticker clip shows.
     pub glyph: Option<String>,
+    /// What an audio clip is titled.
+    pub name: Option<String>,
     /// Normalized canvas position (0..1), for text and stickers.
     pub x: Option<f32>,
     pub y: Option<f32>,
@@ -92,18 +94,20 @@ fn lane_name(lane: LaneKind) -> &'static str {
 }
 
 fn clip_info(lane: LaneKind, clip: &Clip) -> ClipInfo {
-    let (kind, media_path, is_video, text, glyph, x, y) = match &clip.kind {
+    let (kind, media_path, is_video, text, glyph, name, x, y) = match &clip.kind {
         ClipKind::Media { path, is_video } => {
-            ("media", Some(path.clone()), Some(*is_video), None, None, None, None)
+            ("media", Some(path.clone()), Some(*is_video), None, None, None, None, None)
         }
         ClipKind::Text { content, x, y, .. } => {
-            ("text", None, None, Some(content.clone()), None, Some(*x), Some(*y))
+            ("text", None, None, Some(content.clone()), None, None, Some(*x), Some(*y))
         }
         ClipKind::Sticker { glyph, x, y, .. } => {
-            ("sticker", None, None, None, Some(glyph.clone()), Some(*x), Some(*y))
+            ("sticker", None, None, None, Some(glyph.clone()), None, Some(*x), Some(*y))
         }
-        ClipKind::Draw { strokes: _ } => ("draw", None, None, None, None, None, None),
-        ClipKind::Audio { path } => ("audio", Some(path.clone()), None, None, None, None, None),
+        ClipKind::Draw { strokes: _ } => ("draw", None, None, None, None, None, None, None),
+        ClipKind::Audio { path, name } => {
+            ("audio", Some(path.clone()), None, None, None, Some(name.clone()), None, None)
+        }
     };
     ClipInfo {
         id: clip.id,
@@ -115,6 +119,7 @@ fn clip_info(lane: LaneKind, clip: &Clip) -> ClipInfo {
         is_video,
         text,
         glyph,
+        name,
         x,
         y,
     }

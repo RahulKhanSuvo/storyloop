@@ -24,6 +24,11 @@ pub enum Command {
     SetDuration { duration_us: i64 },
     /// Add a photo or video to the main track.
     AddMedia { path: String, is_video: bool, start_us: i64, duration_us: i64 },
+    /// Add music or narration to the audio lane.
+    AddAudio { path: String, name: String, at_us: i64, duration_us: i64 },
+    /// Move a main-track clip to another place in the sequence; the track
+    /// re-times so the clips stay back to back.
+    ReorderMain { id: u64, index: u32 },
     /// Add a text overlay.
     AddText { content: String, at_us: i64, duration_us: i64 },
     /// Change what a text clip says.

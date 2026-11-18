@@ -23,6 +23,16 @@ sealed interface EditorCommand {
   @SerialName("add_media")
   data class AddMedia(val path: String, val is_video: Boolean, val start_us: Long, val duration_us: Long) : EditorCommand
 
+  /** Add music or narration to the audio lane. */
+  @Serializable
+  @SerialName("add_audio")
+  data class AddAudio(val path: String, val name: String, val at_us: Long, val duration_us: Long) : EditorCommand
+
+  /** Move a main-track clip to another place in the sequence. */
+  @Serializable
+  @SerialName("reorder_main")
+  data class ReorderMain(val id: Long, val index: Int) : EditorCommand
+
   /** Add a text overlay. */
   @Serializable
   @SerialName("add_text")

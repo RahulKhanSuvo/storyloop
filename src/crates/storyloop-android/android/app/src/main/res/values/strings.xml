@@ -42,6 +42,9 @@
     <string name="editor_preview">Preview</string>
     <string name="editor_share">Share</string>
     <string name="editor_play">Play</string>
+    <string name="editor_pause">Pause</string>
+    <string name="timeline_add_text">Add text</string>
+    <string name="timeline_add_audio">Add audio</string>
     <string name="editor_done">Done</string>
     <string name="editor_canvas_hint">Tap the tools below to add media, text or stickers</string>
     <string name="editor_tool_media">Media</string>
@@ -55,8 +58,6 @@
     <string name="editor_tool_timeline">Timeline</string>
     <string name="editor_tool_format">Format</string>
     <string name="editor_canvas_add">Add media or video</string>
-    <string name="timeline_text_placeholder">Text</string>
-    <string name="timeline_duration_label">Duration: %1$s</string>
     <string name="editor_text_hint">Type something…</string>
     <string name="editor_add_text">Add text</string>
     <string name="editor_media_title">Your media</string>
